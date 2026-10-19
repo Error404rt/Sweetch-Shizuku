@@ -425,8 +425,8 @@ private fun WheelMenu(
 
             ActionCatalog.items.forEachIndexed { index, action ->
                 val angle = Math.toRadians(-90.0 + index * 60.0)
-                val left = center.value + orbit.value * cos(angle) - chipSize.value / 2f
-                val top = center.value + orbit.value * sin(angle) - chipSize.value / 2f
+                val left = center.value + orbit.value * cos(angle).toFloat() - chipSize.value / 2f
+                val top = center.value + orbit.value * sin(angle).toFloat() - chipSize.value / 2f
                 WheelActionChip(
                     modifier = Modifier.offset(x = Dp(left), y = Dp(top)).size(chipSize),
                     action = action,
