@@ -330,6 +330,77 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                 cursorColor = accent, focusedContainerColor = tile, unfocusedContainerColor = tile
                             )
                         )
+                        OutlinedButton(
+                            onClick = { filePicker.launch(arrayOf("*/*")) },
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(if (selectedFiles.isEmpty()) "Выбрать файлы" else "Выбрано файлов: ${selectedFiles.size}")
+                        }
+                        if (selectedFiles.isNotEmpty()) {
+                            Text(
+                                "Выбрано: ${selectedFiles.size} · тип: ${selectionKinds.singleOrNull()?.name?.lowercase() ?: "смешанные файлы"}",
+                                color = muted,
+                                fontSize = 11.sp
+                            )
+                            if (selectionKinds.singleOrNull() == MediaKind.IMAGE) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    listOf("JPEG", "PNG", "WEBP").forEach { format ->
+                                        OutlinedButton(
+                                            onClick = {
+                                                scope.launch {
+                                                    status = "Конвертирую изображения в $format…"
+                                                    val result = withContext(Dispatchers.IO) {
+                                                        var done = 0
+                                                        var failed = 0
+                                                        selectedFiles.forEach { uri ->
+                                                            try { MediaFileOperations.convertImage(context, uri, format); done++ }
+                                                            catch (_: Exception) { failed++ }
+                                                        }
+                                                        done to failed
+                                                    }
+                                                    status = "$format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                        ) { Text(format, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                                    }
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                val result = withContext(Dispatchers.IO) {
+                                                    var done = 0
+                                                    var failed = 0
+                                                    selectedFiles.forEach { uri -> try { MediaFileOperations.compressImage(context, uri); done++ } catch (_: Exception) { failed++ } }
+                                                    done to failed
+                                                }
+                                                status = "Сжатие: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("Сжать") }
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                val result = withContext(Dispatchers.IO) {
+                                                    var done = 0
+                                                    var failed = 0
+                                                    selectedFiles.forEach { uri -> try { MediaFileOperations.rotateImage(context, uri, 90f); done++ } catch (_: Exception) { failed++ } }
+                                                    done to failed
+                                                }
+                                                status = "Поворот: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text("Повернуть 90°") }
+                                }
+                            } else {
+                                Text("Для выбранного типа операции доступны в круговом меню выше. Результаты сохраняются в Downloads/Sweetch.", color = muted, fontSize = 10.sp, lineHeight = 14.sp)
+                            }
+                        }
                         Button(
                             onClick = { showUrlDialog = true },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
