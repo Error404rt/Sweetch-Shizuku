@@ -364,15 +364,11 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                     } else if (MediaDownloader.isLikelyDirectFile(target)) {
                         enqueueDirectDownload(context, target) { status = it }
                     } else {
-                        scope.launch {
-                            status = "Подготавливаю загрузку…"
-                            try {
-                                withContext(Dispatchers.IO) {
-                                    MediaDownloader.downloadMediaPage(context, target) { message -> status = message }
-                                }
-                            } catch (error: Exception) {
-                                status = error.message ?: "Загрузка не удалась."
-                            }
+                        try {
+                            MediaDownloadWorker.enqueue(context, target)
+                            status = "Загрузка добавлена в фоновую очередь. Прогресс появится в системном уведомлении."
+                        } catch (error: Exception) {
+                            status = error.message ?: "Не удалось запустить фоновую загрузку."
                         }
                     }
                 }) { Text("Начать", color = accent, fontWeight = FontWeight.Bold) }
