@@ -311,14 +311,30 @@ private fun SweetchHome(initialText: String = "") {
             title = { Text("Загрузка по ссылке", color = text, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Android DownloadManager принимает прямые HTTP(S)-ссылки на файлы. Страницы видеосервисов требуют отдельного адаптера и здесь не притворяются поддерживаемыми.", color = muted, fontSize = 13.sp, lineHeight = 18.sp)
+                    Text("Прямые ссылки скачиваются системным DownloadManager. Страницы медиасервисов обрабатываются встроенным yt-dlp (1000+ поддерживаемых сайтов); отдельные сайты могут требовать cookies или дополнительную авторизацию.", color = muted, fontSize = 13.sp, lineHeight = 18.sp)
                     OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("URL") })
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     showUrlDialog = false
-                    enqueueDirectDownload(context, url) { status = it }
+                    val target = url.trim()
+                    if (target.isBlank()) {
+                        status = "Сначала введите ссылку."
+                    } else if (MediaDownloader.isLikelyDirectFile(target)) {
+                        enqueueDirectDownload(context, target) { status = it }
+                    } else {
+                        scope.launch {
+                            status = "Подготавливаю загрузку…"
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    MediaDownloader.downloadMediaPage(context, target) { message -> status = message }
+                                }
+                            } catch (error: Exception) {
+                                status = error.message ?: "Загрузка не удалась."
+                            }
+                        }
+                    }
                 }) { Text("Начать", color = accent, fontWeight = FontWeight.Bold) }
             },
             dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text("Отмена", color = muted) } }
