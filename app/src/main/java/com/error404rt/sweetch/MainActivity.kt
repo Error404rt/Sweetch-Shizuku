@@ -67,19 +67,26 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class MenuStyle { WHEEL, PUZZLE }
-private enum class ActionKind { DOWNLOAD, SHARE, COPY, OPEN, HISTORY, SETTINGS }
+private enum class WheelKind { CONVERT, TOOLS, ACTIONS }
+private enum class ActionKind { DOWNLOAD, SHARE, COPY, OPEN, HISTORY, SETTINGS, JPEG, PNG, WEBP, COMPRESS, ROTATE }
 
 private data class ActionItem(
     val id: String,
     val title: String,
     val subtitle: String,
     val kind: ActionKind,
-    val glyph: Glyph
+    val glyph: Glyph,
+    val wheel: WheelKind = WheelKind.ACTIONS
 )
 
 private enum class Glyph { DOWNLOAD, SHARE, COPY, LINK, HISTORY, SETTINGS }
 
 private val actions = listOf(
+    ActionItem("jpeg", "JPEG", "Конвертировать в JPEG", ActionKind.JPEG, Glyph.COPY, WheelKind.CONVERT),
+    ActionItem("png", "PNG", "Конвертировать в PNG", ActionKind.PNG, Glyph.COPY, WheelKind.CONVERT),
+    ActionItem("webp", "WEBP", "Конвертировать в WEBP", ActionKind.WEBP, Glyph.COPY, WheelKind.CONVERT),
+    ActionItem("compress", "Сжать", "Сохранить уменьшенную копию", ActionKind.COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
+    ActionItem("rotate", "Повернуть", "Поворот изображения на 90°", ActionKind.ROTATE, Glyph.SETTINGS, WheelKind.TOOLS),
     ActionItem("download", "Скачать", "Ссылка на файл или медиа", ActionKind.DOWNLOAD, Glyph.DOWNLOAD),
     ActionItem("share", "Поделиться", "Передать ссылку в приложение", ActionKind.SHARE, Glyph.SHARE),
     ActionItem("copy", "Копировать", "Скопировать ссылку", ActionKind.COPY, Glyph.COPY),
@@ -94,6 +101,7 @@ private fun SweetchHome(initialText: String = "") {
     val scope = rememberCoroutineScope()
     var dark by rememberSaveable { mutableStateOf(true) }
     var style by rememberSaveable { mutableStateOf(MenuStyle.WHEEL) }
+    var wheelKind by rememberSaveable { mutableStateOf(WheelKind.ACTIONS) }
     var selectedId by rememberSaveable { mutableStateOf("download") }
     var url by rememberSaveable { mutableStateOf(initialText) }
     var showUrlDialog by rememberSaveable { mutableStateOf(false) }
@@ -106,7 +114,9 @@ private fun SweetchHome(initialText: String = "") {
         picked.forEach { uri -> try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { } }
         status = if (picked.isEmpty()) "Файлы не выбраны" else "Выбрано файлов: ${picked.size}"
     }
-    val selected = actions.first { it.id == selectedId }
+    val visibleActions = actions.filter { it.wheel == wheelKind }
+    if (visibleActions.none { it.id == selectedId }) selectedId = visibleActions.first().id
+    val selected = visibleActions.first { it.id == selectedId }
     val page = if (dark) Ink else Paper
     val panel = if (dark) Panel else PaperPanel
     val tile = if (dark) Tile else Color(0xFFF1EFF0)
@@ -148,11 +158,48 @@ private fun SweetchHome(initialText: String = "") {
                     ModeTab("Пазл", style == MenuStyle.PUZZLE, Modifier.weight(1f), text, muted, accent, edge) { style = MenuStyle.PUZZLE }
                 }
 
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(panel).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ModeTab("Конвертация", wheelKind == WheelKind.CONVERT, Modifier.weight(1f), text, muted, accent, edge) { wheelKind = WheelKind.CONVERT; selectedId = "jpeg" }
+                    ModeTab("Инструменты", wheelKind == WheelKind.TOOLS, Modifier.weight(1f), text, muted, accent, edge) { wheelKind = WheelKind.TOOLS; selectedId = "compress" }
+                    ModeTab("Действия", wheelKind == WheelKind.ACTIONS, Modifier.weight(1f), text, muted, accent, edge) { wheelKind = WheelKind.ACTIONS; selectedId = "download" }
+                }
+
                 Box(Modifier.fillMaxWidth().height(if (style == MenuStyle.WHEEL) 322.dp else 310.dp), contentAlignment = Alignment.Center) {
                     if (style == MenuStyle.WHEEL) {
-                        RadialActions(actions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
+                        RadialActions(visibleActions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
                             selectedId = item.id
                             when (item.kind) {
+                                ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP -> {
+                                    val format = when (item.kind) { ActionKind.JPEG -> "JPEG"; ActionKind.PNG -> "PNG"; else -> "WEBP" }
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
+                                    else scope.launch {
+                                        status = "Конвертирую в $format…"
+                                        val result = withContext(Dispatchers.IO) {
+                                            var done = 0; var failed = 0
+                                            selectedFiles.forEach { uri -> try { MediaFileOperations.convertImage(context, uri, format); done++ } catch (_: Exception) { failed++ } }
+                                            done to failed
+                                        }
+                                        status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                    }
+                                }
+                                ActionKind.COMPRESS, ActionKind.ROTATE -> {
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
+                                    else scope.launch {
+                                        status = if (item.kind == ActionKind.COMPRESS) "Сжимаю изображения…" else "Поворачиваю изображения…"
+                                        val result = withContext(Dispatchers.IO) {
+                                            var done = 0; var failed = 0
+                                            selectedFiles.forEach { uri ->
+                                                try {
+                                                    if (item.kind == ActionKind.COMPRESS) MediaFileOperations.compressImage(context, uri)
+                                                    else MediaFileOperations.rotateImage(context, uri, 90f)
+                                                    done++
+                                                } catch (_: Exception) { failed++ }
+                                            }
+                                            done to failed
+                                        }
+                                        status = "${item.title}: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                    }
+                                }
                                 ActionKind.DOWNLOAD -> showUrlDialog = true
                                 ActionKind.SETTINGS -> showSettings = true
                                 ActionKind.HISTORY -> showHistory = true
@@ -162,9 +209,40 @@ private fun SweetchHome(initialText: String = "") {
                             }
                         }
                     } else {
-                        PuzzleActions(actions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
+                        PuzzleActions(visibleActions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
                             selectedId = item.id
                             when (item.kind) {
+                                ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP -> {
+                                    val format = when (item.kind) { ActionKind.JPEG -> "JPEG"; ActionKind.PNG -> "PNG"; else -> "WEBP" }
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
+                                    else scope.launch {
+                                        status = "Конвертирую в $format…"
+                                        val result = withContext(Dispatchers.IO) {
+                                            var done = 0; var failed = 0
+                                            selectedFiles.forEach { uri -> try { MediaFileOperations.convertImage(context, uri, format); done++ } catch (_: Exception) { failed++ } }
+                                            done to failed
+                                        }
+                                        status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                    }
+                                }
+                                ActionKind.COMPRESS, ActionKind.ROTATE -> {
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
+                                    else scope.launch {
+                                        status = if (item.kind == ActionKind.COMPRESS) "Сжимаю изображения…" else "Поворачиваю изображения…"
+                                        val result = withContext(Dispatchers.IO) {
+                                            var done = 0; var failed = 0
+                                            selectedFiles.forEach { uri ->
+                                                try {
+                                                    if (item.kind == ActionKind.COMPRESS) MediaFileOperations.compressImage(context, uri)
+                                                    else MediaFileOperations.rotateImage(context, uri, 90f)
+                                                    done++
+                                                } catch (_: Exception) { failed++ }
+                                            }
+                                            done to failed
+                                        }
+                                        status = "${item.title}: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                    }
+                                }
                                 ActionKind.DOWNLOAD -> showUrlDialog = true
                                 ActionKind.SETTINGS -> showSettings = true
                                 ActionKind.HISTORY -> showHistory = true
