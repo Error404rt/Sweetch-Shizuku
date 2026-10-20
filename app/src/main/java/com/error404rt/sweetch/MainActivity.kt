@@ -62,7 +62,14 @@ private val PaperMuted = Color(0xFF77747D)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { SweetchHome(initialText = intent?.getCharSequenceExtra(android.content.Intent.EXTRA_TEXT)?.toString() ?: intent?.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString().orEmpty()) }
+        val sharedText = intent?.getCharSequenceExtra(android.content.Intent.EXTRA_TEXT)?.toString()
+            ?: intent?.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString().orEmpty()
+        val sharedFiles = when (intent?.action) {
+            android.content.Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra<Uri>(android.content.Intent.EXTRA_STREAM))
+            android.content.Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Uri>(android.content.Intent.EXTRA_STREAM).orEmpty()
+            else -> emptyList()
+        }
+        setContent { SweetchHome(initialText = sharedText, initialFiles = sharedFiles) }
     }
 }
 
@@ -96,7 +103,7 @@ private val actions = listOf(
 )
 
 @Composable
-private fun SweetchHome(initialText: String = "") {
+private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = emptyList()) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var dark by rememberSaveable { mutableStateOf(true) }
@@ -121,7 +128,7 @@ private fun SweetchHome(initialText: String = "") {
             }
         }
     }
-    var selectedFiles by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var selectedFiles by remember { mutableStateOf(initialFiles) }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { picked ->
         selectedFiles = picked
         picked.forEach { uri -> try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { } }
