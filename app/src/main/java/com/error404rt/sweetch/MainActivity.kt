@@ -102,6 +102,8 @@ private val actions = listOf(
     ActionItem("rotate", "Повернуть", "Поворот изображения на 90°", ActionKind.ROTATE, Glyph.SETTINGS, WheelKind.TOOLS),
     ActionItem("video_compress", "Видео", "Сжать видео в MP4", ActionKind.VIDEO_COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
     ActionItem("thumbnail", "Кадр", "Извлечь миниатюру из видео", ActionKind.THUMBNAIL, Glyph.COPY, WheelKind.TOOLS),
+    ActionItem("audio_compress", "Аудио", "Сжать аудио до MP3 128k", ActionKind.AUDIO_COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
+    ActionItem("audio_normalize", "Громкость", "Нормализовать громкость аудио", ActionKind.AUDIO_NORMALIZE, Glyph.SETTINGS, WheelKind.TOOLS),
     ActionItem("download", "Скачать", "Ссылка на файл или медиа", ActionKind.DOWNLOAD, Glyph.DOWNLOAD),
     ActionItem("share", "Поделиться", "Передать ссылку в приложение", ActionKind.SHARE, Glyph.SHARE),
     ActionItem("copy", "Копировать", "Скопировать ссылку", ActionKind.COPY, Glyph.COPY),
@@ -142,8 +144,30 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
         picked.forEach { uri -> try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { } }
         status = if (picked.isEmpty()) "Файлы не выбраны" else "Выбрано файлов: ${picked.size}"
     }
-    val visibleActions = actions.filter { it.wheel == wheelKind }
-    val selected = visibleActions.first { it.id == selectedId }
+    val selectionKinds = selectedFiles.map { MediaTransformOperations.classify(context, it) }.distinct()
+    val candidateActions = actions.filter { item ->
+        item.wheel == wheelKind && when (wheelKind) {
+            WheelKind.ACTIONS -> true
+            WheelKind.CONVERT -> when {
+                selectedFiles.isEmpty() -> item.kind in setOf(ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP, ActionKind.MP3, ActionKind.MP4, ActionKind.WEBM)
+                selectionKinds.size != 1 -> true
+                selectionKinds.single() == MediaKind.IMAGE -> item.kind in setOf(ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP)
+                selectionKinds.single() == MediaKind.AUDIO -> item.kind in setOf(ActionKind.MP3, ActionKind.M4A, ActionKind.WAV)
+                selectionKinds.single() == MediaKind.VIDEO -> item.kind in setOf(ActionKind.MP4, ActionKind.WEBM, ActionKind.MP3, ActionKind.GIF)
+                else -> true
+            }
+            WheelKind.TOOLS -> when {
+                selectedFiles.isEmpty() -> true
+                selectionKinds.size != 1 -> true
+                selectionKinds.single() == MediaKind.IMAGE -> item.kind in setOf(ActionKind.COMPRESS, ActionKind.ROTATE)
+                selectionKinds.single() == MediaKind.AUDIO -> item.kind in setOf(ActionKind.AUDIO_COMPRESS, ActionKind.AUDIO_NORMALIZE)
+                selectionKinds.single() == MediaKind.VIDEO -> item.kind in setOf(ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL)
+                else -> true
+            }
+        }
+    }
+    val visibleActions = candidateActions.ifEmpty { actions.filter { it.wheel == wheelKind } }
+    val selected = visibleActions.firstOrNull { it.id == selectedId } ?: visibleActions.first()
     val page = if (dark) Ink else Paper
     val panel = if (dark) Panel else PaperPanel
     val tile = if (dark) Tile else Color(0xFFF1EFF0)
@@ -219,10 +243,10 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                         status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
                                     }
                                 }
-                                ActionKind.COMPRESS, ActionKind.ROTATE, ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL -> {
+                                ActionKind.COMPRESS, ActionKind.ROTATE, ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL, ActionKind.AUDIO_COMPRESS, ActionKind.AUDIO_NORMALIZE -> {
                                     if (selectedFiles.isEmpty()) status = "Сначала выберите файлы"
                                     else scope.launch {
-                                        status = when (item.kind) { ActionKind.COMPRESS -> "Сжимаю изображения…"; ActionKind.ROTATE -> "Поворачиваю изображения…"; ActionKind.VIDEO_COMPRESS -> "Сжимаю видео…"; else -> "Извлекаю кадр…" }
+                                        status = when (item.kind) { ActionKind.COMPRESS -> "Сжимаю изображения…"; ActionKind.ROTATE -> "Поворачиваю изображения…"; ActionKind.VIDEO_COMPRESS -> "Сжимаю видео…"; ActionKind.AUDIO_COMPRESS -> "Сжимаю аудио…"; ActionKind.AUDIO_NORMALIZE -> "Нормализую громкость…"; else -> "Извлекаю кадр…" }
                                         val result = withContext(Dispatchers.IO) {
                                             var done = 0; var failed = 0
                                             selectedFiles.forEach { uri ->
@@ -231,6 +255,8 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                                         ActionKind.COMPRESS -> MediaFileOperations.compressImage(context, uri)
                                                         ActionKind.ROTATE -> MediaFileOperations.rotateImage(context, uri, 90f)
                                                         ActionKind.VIDEO_COMPRESS -> MediaTransformOperations.compressVideo(context, uri)
+                                                        ActionKind.AUDIO_COMPRESS -> MediaTransformOperations.compressAudio(context, uri)
+                                                        ActionKind.AUDIO_NORMALIZE -> MediaTransformOperations.normalizeAudio(context, uri)
                                                         else -> MediaTransformOperations.thumbnail(context, uri)
                                                     }
                                                     done++
