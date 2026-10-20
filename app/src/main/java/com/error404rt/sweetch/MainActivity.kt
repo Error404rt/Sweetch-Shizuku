@@ -2,12 +2,7 @@ package com.error404rt.sweetch
 
 import android.app.DownloadManager
 import android.content.Context
-import android.provider.MediaStore
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import android.net.Uri
-import android.os.Bundle
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -44,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.net.URL
 import kotlin.math.cos
 import kotlin.math.sin
 
