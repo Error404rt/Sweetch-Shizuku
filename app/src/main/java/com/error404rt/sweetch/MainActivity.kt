@@ -433,6 +433,11 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                     }, modifier = Modifier.weight(1f)) { Text("Запросить доступ", fontSize = 11.sp) }
                     OutlinedButton(onClick = { shizukuStatus = ShizukuBridge.status(context) }, modifier = Modifier.weight(1f)) { Text("Обновить", fontSize = 11.sp) }
                 }
+                Text("ЖЕСТ КОНТЕКСТНОГО МЕНЮ", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Text("Долгое нажатие на элемент → кнопка уменьшения громкости. Android попросит вручную включить службу доступности.", color = muted, fontSize = 11.sp, lineHeight = 16.sp)
+                OutlinedButton(onClick = {
+                    runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Настроить службу доступности") }
                 Text("Shizuku даёт только явно разрешённые системные операции. Root не предполагается.", color = muted, fontSize = 10.sp, lineHeight = 14.sp)
             }
         }, confirmButton = { TextButton(onClick = { dark = !dark }) { Text("Сменить тему", color = accent) } }, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Готово", color = muted) } })
