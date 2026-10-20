@@ -59,7 +59,7 @@ internal object MediaDownloader {
             YtDlp.executeAsync(request) { progress, eta, line ->
                 val message = when {
                     progress >= 0f -> "Загрузка: ${progress.toInt()}% · ETA ${eta}s"
-                    line.isNotBlank() -> line.take(120)
+                    line.isNotBlank() -> "Обрабатываю медиа…"
                     else -> "Загружаю медиа…"
                 }
                 onMain { onProgress(message) }
