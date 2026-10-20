@@ -109,6 +109,7 @@ private fun SweetchHome(initialText: String = "") {
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var status by rememberSaveable { mutableStateOf("Выберите действие") }
     var cookieStatus by rememberSaveable { mutableStateOf("Cookies не импортированы") }
+    var shizukuStatus by rememberSaveable { mutableStateOf(ShizukuBridge.status(context)) }
     val cookiePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { picked ->
         if (picked != null) scope.launch {
             try {
@@ -363,6 +364,17 @@ private fun SweetchHome(initialText: String = "") {
                 ModeTab("Круговое", style == MenuStyle.WHEEL, Modifier.fillMaxWidth(), text, muted, accent, edge) { style = MenuStyle.WHEEL }
                 ModeTab("Пазл", style == MenuStyle.PUZZLE, Modifier.fillMaxWidth(), text, muted, accent, edge) { style = MenuStyle.PUZZLE }
                 Text("Тема: ${if (dark) "тёмная" else "светлая"}", color = muted)
+                HorizontalDivider(color = edge)
+                Text("СИСТЕМНЫЙ ДОСТУП", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Text(shizukuStatus, color = muted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        runCatching { ShizukuBridge.requestPermission() }
+                        shizukuStatus = ShizukuBridge.status(context)
+                    }, modifier = Modifier.weight(1f)) { Text("Запросить доступ", fontSize = 11.sp) }
+                    OutlinedButton(onClick = { shizukuStatus = ShizukuBridge.status(context) }, modifier = Modifier.weight(1f)) { Text("Обновить", fontSize = 11.sp) }
+                }
+                Text("Shizuku даёт только явно разрешённые системные операции. Root не предполагается.", color = muted, fontSize = 10.sp, lineHeight = 14.sp)
             }
         }, confirmButton = { TextButton(onClick = { dark = !dark }) { Text("Сменить тему", color = accent) } }, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Готово", color = muted) } })
     }
