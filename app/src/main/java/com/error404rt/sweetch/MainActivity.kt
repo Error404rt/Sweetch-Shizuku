@@ -112,12 +112,13 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                 selectionKinds.single() == MediaKind.IMAGE -> item.kind in setOf(ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP)
                 selectionKinds.single() == MediaKind.AUDIO -> item.kind in setOf(ActionKind.MP3, ActionKind.M4A, ActionKind.WAV)
                 selectionKinds.single() == MediaKind.VIDEO -> item.kind in setOf(ActionKind.MP4, ActionKind.WEBM, ActionKind.MP3, ActionKind.GIF)
+                selectionKinds.single() == MediaKind.PDF -> item.kind == ActionKind.PDF_TO_IMAGES
                 else -> true
             }
             WheelKind.TOOLS -> when {
                 selectedFiles.isEmpty() -> true
                 selectionKinds.size != 1 -> true
-                selectionKinds.single() == MediaKind.IMAGE -> item.kind in setOf(ActionKind.COMPRESS, ActionKind.ROTATE)
+                selectionKinds.single() == MediaKind.IMAGE -> item.kind in (setOf(ActionKind.COMPRESS, ActionKind.ROTATE) + if (selectedFiles.size >= 2) setOf(ActionKind.IMAGES_TO_PDF) else emptySet())
                 selectionKinds.single() == MediaKind.AUDIO -> item.kind in setOf(ActionKind.AUDIO_COMPRESS, ActionKind.AUDIO_NORMALIZE)
                 selectionKinds.single() == MediaKind.VIDEO -> item.kind in setOf(ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL)
                 else -> true
@@ -178,6 +179,24 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                         RadialActions(visibleActions, selected.id, dark, text, muted, panel, tile, edge, accent) { item ->
                             selectedId = item.id
                             when (item.kind) {
+                                ActionKind.PDF_TO_IMAGES -> {
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите PDF-файлы"
+                                    else scope.launch {
+                                        status = "Преобразую страницы PDF в PNG…"
+                                        val result = withContext(Dispatchers.IO) {
+                                            var pages = 0
+                                            var failed = 0
+                                            selectedFiles.forEach { uri ->
+                                                try {
+                                                    if (MediaTransformOperations.classify(context, uri) != MediaKind.PDF) throw IllegalArgumentException("Not a PDF")
+                                                    pages += DocumentOperations.pdfToImages(context, uri)
+                                                } catch (_: Exception) { failed++ }
+                                            }
+                                            pages to failed
+                                        }
+                                        status = "PDF: сохранено страниц — ${result.first}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                    }
+                                }
                                 ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP, ActionKind.MP3, ActionKind.M4A, ActionKind.WAV, ActionKind.MP4, ActionKind.WEBM, ActionKind.GIF -> {
                                     val format = when (item.kind) {
                                         ActionKind.JPEG -> "JPEG"; ActionKind.PNG -> "PNG"; ActionKind.WEBP -> "WEBP"
@@ -199,6 +218,18 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                             done to failed
                                         }
                                         status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                    }
+                                }
+                                ActionKind.IMAGES_TO_PDF -> {
+                                    if (selectedFiles.size < 2) status = "Выберите минимум два изображения"
+                                    else scope.launch {
+                                        status = "Создаю PDF…"
+                                        try {
+                                            val output = withContext(Dispatchers.IO) { DocumentOperations.imagesToPdf(context, selectedFiles) }
+                                            status = "PDF сохранён: $output"
+                                        } catch (error: Exception) {
+                                            status = error.message ?: "Не удалось создать PDF"
+                                        }
                                     }
                                 }
                                 ActionKind.COMPRESS, ActionKind.ROTATE, ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL, ActionKind.AUDIO_COMPRESS, ActionKind.AUDIO_NORMALIZE -> {
@@ -237,6 +268,24 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                         PuzzleActions(visibleActions, selected.id, dark, text, muted, panel, tile, edge, accent) { item ->
                             selectedId = item.id
                             when (item.kind) {
+                                ActionKind.PDF_TO_IMAGES -> {
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите PDF-файлы"
+                                    else scope.launch {
+                                        status = "Преобразую страницы PDF в PNG…"
+                                        val result = withContext(Dispatchers.IO) {
+                                            var pages = 0
+                                            var failed = 0
+                                            selectedFiles.forEach { uri ->
+                                                try {
+                                                    if (MediaTransformOperations.classify(context, uri) != MediaKind.PDF) throw IllegalArgumentException("Not a PDF")
+                                                    pages += DocumentOperations.pdfToImages(context, uri)
+                                                } catch (_: Exception) { failed++ }
+                                            }
+                                            pages to failed
+                                        }
+                                        status = "PDF: сохранено страниц — ${result.first}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                    }
+                                }
                                 ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP, ActionKind.MP3, ActionKind.M4A, ActionKind.WAV, ActionKind.MP4, ActionKind.WEBM, ActionKind.GIF -> {
                                     val format = when (item.kind) {
                                         ActionKind.JPEG -> "JPEG"; ActionKind.PNG -> "PNG"; ActionKind.WEBP -> "WEBP"
@@ -258,6 +307,18 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                             done to failed
                                         }
                                         status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
+                                    }
+                                }
+                                ActionKind.IMAGES_TO_PDF -> {
+                                    if (selectedFiles.size < 2) status = "Выберите минимум два изображения"
+                                    else scope.launch {
+                                        status = "Создаю PDF…"
+                                        try {
+                                            val output = withContext(Dispatchers.IO) { DocumentOperations.imagesToPdf(context, selectedFiles) }
+                                            status = "PDF сохранён: $output"
+                                        } catch (error: Exception) {
+                                            status = error.message ?: "Не удалось создать PDF"
+                                        }
                                     }
                                 }
                                 ActionKind.COMPRESS, ActionKind.ROTATE, ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL, ActionKind.AUDIO_COMPRESS, ActionKind.AUDIO_NORMALIZE -> {
