@@ -2,11 +2,17 @@ package com.error404rt.sweetch
 
 import android.app.DownloadManager
 import android.content.Context
+import android.provider.MediaStore
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -90,6 +96,12 @@ private fun SweetchHome() {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var status by rememberSaveable { mutableStateOf("Выберите действие") }
+    var selectedFiles by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { picked ->
+        selectedFiles = picked
+        picked.forEach { uri -> try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { } }
+        status = if (picked.isEmpty()) "Файлы не выбраны" else "Выбрано файлов: ${picked.size}"
+    }
     val selected = actions.first { it.id == selectedId }
     val page = if (dark) Ink else Paper
     val panel = if (dark) Panel else PaperPanel
