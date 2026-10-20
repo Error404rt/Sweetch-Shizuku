@@ -31,7 +31,7 @@ class SweetchAccessibilityService : AccessibilityService() {
 
         lastLongClickAt = 0L
         val launch = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (lastContextText.isNotBlank()) putExtra(Intent.EXTRA_TEXT, lastContextText)
         }
         lastContextText = ""
