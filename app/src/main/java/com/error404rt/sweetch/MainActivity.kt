@@ -87,6 +87,30 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
     var cookieStatus by rememberSaveable { mutableStateOf("Cookies не импортированы") }
     var shizukuStatus by rememberSaveable { mutableStateOf(ShizukuBridge.status(context)) }
     var potHelperStatus by rememberSaveable { mutableStateOf(PotHelperIntegration.status(context)) }
+    var potDownloadId by rememberSaveable { mutableStateOf(PotHelperIntegration.savedDownloadId(context)) }
+    var potDownloadSnapshot by remember { mutableStateOf<PotHelperIntegration.DownloadSnapshot?>(null) }
+    var potDownloadBusy by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(potDownloadId, showSettings) {
+        if (!showSettings) return@LaunchedEffect
+        if (potDownloadId <= 0L) {
+            potHelperStatus = PotHelperIntegration.status(context)
+            return@LaunchedEffect
+        }
+        while (true) {
+            val snapshot = withContext(Dispatchers.IO) {
+                PotHelperIntegration.queryDownload(context, potDownloadId)
+            }
+            potDownloadSnapshot = snapshot
+            potHelperStatus = withContext(Dispatchers.IO) {
+                PotHelperIntegration.downloadStatusText(context, snapshot)
+            }
+            if (PotHelperIntegration.isInstalled(context) ||
+                snapshot == null ||
+                snapshot.status == DownloadManager.STATUS_FAILED
+            ) break
+            kotlinx.coroutines.delay(900)
+        }
+    }
     val cookiePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { picked ->
         if (picked != null) scope.launch {
             try {
@@ -543,20 +567,84 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                 HorizontalDivider(color = edge)
                 Text("PO TOKEN HELPER", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                 Text(potHelperStatus, color = muted, fontSize = 11.sp, lineHeight = 16.sp)
+                if (potDownloadSnapshot?.status == DownloadManager.STATUS_RUNNING ||
+                    potDownloadSnapshot?.status == DownloadManager.STATUS_PENDING
+                ) {
+                    val progress = potDownloadSnapshot?.percent
+                    LinearProgressIndicator(
+                        progress = { (progress ?: 0).toFloat() / 100f },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
-                        try {
-                            if (PotHelperIntegration.isInstalled(context)) {
-                                PotHelperIntegration.openHelper(context)
-                            } else {
-                                PotHelperIntegration.openOfficialReleases(context)
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    if (PotHelperIntegration.isInstalled(context)) {
+                                        PotHelperIntegration.openHelper(context)
+                                        potHelperStatus = PotHelperIntegration.status(context)
+                                    } else {
+                                        val latestSnapshot = if (potDownloadId > 0L) {
+                                            withContext(Dispatchers.IO) {
+                                                PotHelperIntegration.queryDownload(context, potDownloadId)
+                                            }
+                                        } else null
+                                        potDownloadSnapshot = latestSnapshot
+                                        if (latestSnapshot?.status == DownloadManager.STATUS_SUCCESSFUL) {
+                                            when (PotHelperIntegration.installDownloaded(context, potDownloadId)) {
+                                                PotHelperIntegration.InstallResult.SETTINGS_OPENED -> {
+                                                    potHelperStatus = "Разрешите Sweetch устанавливать APK в настройках Android, вернитесь сюда и нажмите «Проверить и установить»."
+                                                }
+                                                PotHelperIntegration.InstallResult.INSTALLER_STARTED -> {
+                                                    potHelperStatus = "Открылся системный установщик Android. Подтвердите установку PotHelper там."
+                                                }
+                                            }
+                                        } else if (latestSnapshot?.status == DownloadManager.STATUS_PENDING ||
+                                            latestSnapshot?.status == DownloadManager.STATUS_RUNNING ||
+                                            latestSnapshot?.status == DownloadManager.STATUS_PAUSED
+                                        ) {
+                                            potHelperStatus = PotHelperIntegration.downloadStatusText(context, latestSnapshot)
+                                        } else {
+                                            potDownloadBusy = true
+                                            potHelperStatus = "Получаю последний официальный релиз PotHelper…"
+                                            val id = withContext(Dispatchers.IO) {
+                                                PotHelperIntegration.enqueueLatestDownload(context)
+                                            }
+                                            potDownloadId = id
+                                            potDownloadSnapshot = withContext(Dispatchers.IO) {
+                                                PotHelperIntegration.queryDownload(context, id)
+                                            }
+                                            potHelperStatus = PotHelperIntegration.downloadStatusText(context, potDownloadSnapshot)
+                                        }
+                                    }
+                                } catch (error: Exception) {
+                                    potHelperStatus = error.message ?: "Не удалось выполнить действие с PotHelper."
+                                } finally {
+                                    potDownloadBusy = false
+                                }
                             }
-                            potHelperStatus = PotHelperIntegration.status(context)
-                        } catch (error: Exception) {
-                            potHelperStatus = "Не удалось открыть PotHelper: ${error.message ?: "ошибка Android"}"
+                        },
+                        enabled = !potDownloadBusy &&
+                            potDownloadSnapshot?.status !in setOf(
+                                DownloadManager.STATUS_PENDING,
+                                DownloadManager.STATUS_RUNNING,
+                                DownloadManager.STATUS_PAUSED
+                            ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val label = when {
+                            PotHelperIntegration.isInstalled(context) -> "Открыть помощник"
+                            potDownloadBusy -> "Подготовка…"
+                            potDownloadSnapshot?.status == DownloadManager.STATUS_SUCCESSFUL -> "Проверить и установить"
+                            potDownloadSnapshot?.status in setOf(
+                                DownloadManager.STATUS_PENDING,
+                                DownloadManager.STATUS_RUNNING,
+                                DownloadManager.STATUS_PAUSED
+                            ) -> "Скачивание…"
+                            else -> "Скачать APK"
                         }
-                    }, modifier = Modifier.weight(1f)) {
-                        Text(if (PotHelperIntegration.isInstalled(context)) "Открыть помощник" else "Скачать APK", fontSize = 11.sp)
+                        Text(label, fontSize = 11.sp)
                     }
                     OutlinedButton(onClick = {
                         potHelperStatus = PotHelperIntegration.status(context)
