@@ -108,6 +108,18 @@ private fun SweetchHome(initialText: String = "") {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var status by rememberSaveable { mutableStateOf("Выберите действие") }
+    var cookieStatus by rememberSaveable { mutableStateOf("Cookies не импортированы") }
+    val cookiePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { picked ->
+        if (picked != null) scope.launch {
+            try {
+                val rows = withContext(Dispatchers.IO) { CookieStore.import(context, picked) }
+                cookieStatus = "Cookies импортированы: $rows строк"
+                status = "Cookies сохранены в приватном хранилище приложения."
+            } catch (error: Exception) {
+                cookieStatus = error.message ?: "Не удалось импортировать cookies"
+            }
+        }
+    }
     var selectedFiles by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { picked ->
         selectedFiles = picked
@@ -313,6 +325,10 @@ private fun SweetchHome(initialText: String = "") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Прямые ссылки скачиваются системным DownloadManager. Страницы медиасервисов обрабатываются встроенным yt-dlp (1000+ поддерживаемых сайтов); отдельные сайты могут требовать cookies или дополнительную авторизацию.", color = muted, fontSize = 13.sp, lineHeight = 18.sp)
                     OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("URL") })
+                    OutlinedButton(onClick = { cookiePicker.launch(arrayOf("text/plain", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Импортировать cookies.txt")
+                    }
+                    Text(cookieStatus, color = muted, fontSize = 11.sp, lineHeight = 15.sp)
                 }
             },
             confirmButton = {
