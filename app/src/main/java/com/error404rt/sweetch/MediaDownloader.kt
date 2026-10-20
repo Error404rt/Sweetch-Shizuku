@@ -54,6 +54,7 @@ internal object MediaDownloader {
             .addOption("--no-warnings")
             .addOption("--no-mtime")
             .addOption("-f", "best[height<=1080]/best")
+        CookieStore.file(context)?.let { request.addOption("--cookies", it.absolutePath) }
         onMain { onProgress("Разбираю страницу и загружаю медиа…") }
         val response = try {
             YtDlp.executeAsync(request) { progress, eta, line ->
