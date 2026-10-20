@@ -243,27 +243,46 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                         ActionKind.MP3 -> "MP3"; ActionKind.M4A -> "M4A"; ActionKind.WAV -> "WAV"
                                         ActionKind.MP4 -> "MP4"; ActionKind.WEBM -> "WEBM"; else -> "GIF"
                                     }
-                                    if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите файлы"
                                     else scope.launch {
                                         status = "Конвертирую в $format…"
                                         val result = withContext(Dispatchers.IO) {
                                             var done = 0; var failed = 0
-                                            selectedFiles.forEach { uri -> try { MediaFileOperations.convertImage(context, uri, format); done++ } catch (_: Exception) { failed++ } }
+                                            selectedFiles.forEach { uri ->
+                                                try {
+                                                    if (format in setOf("JPEG", "PNG", "WEBP")) MediaFileOperations.convertImage(context, uri, format)
+                                                    else MediaTransformOperations.convert(context, uri, format)
+                                                    done++
+                                                } catch (_: Exception) { failed++ }
+                                            }
                                             done to failed
                                         }
                                         status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
                                     }
                                 }
-                                ActionKind.COMPRESS, ActionKind.ROTATE, ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL -> {
+                                ActionKind.COMPRESS, ActionKind.ROTATE, ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL, ActionKind.AUDIO_COMPRESS, ActionKind.AUDIO_NORMALIZE -> {
                                     if (selectedFiles.isEmpty()) status = "Сначала выберите файлы"
                                     else scope.launch {
-                                        status = if (item.kind == ActionKind.COMPRESS) "Сжимаю изображения…" else "Поворачиваю изображения…"
+                                        status = when (item.kind) {
+                                            ActionKind.COMPRESS -> "Сжимаю изображения…"
+                                            ActionKind.ROTATE -> "Поворачиваю изображения…"
+                                            ActionKind.VIDEO_COMPRESS -> "Сжимаю видео…"
+                                            ActionKind.AUDIO_COMPRESS -> "Сжимаю аудио…"
+                                            ActionKind.AUDIO_NORMALIZE -> "Нормализую громкость…"
+                                            else -> "Извлекаю кадр…"
+                                        }
                                         val result = withContext(Dispatchers.IO) {
                                             var done = 0; var failed = 0
                                             selectedFiles.forEach { uri ->
                                                 try {
-                                                    if (item.kind == ActionKind.COMPRESS) MediaFileOperations.compressImage(context, uri)
-                                                    else MediaFileOperations.rotateImage(context, uri, 90f)
+                                                    when (item.kind) {
+                                                        ActionKind.COMPRESS -> MediaFileOperations.compressImage(context, uri)
+                                                        ActionKind.ROTATE -> MediaFileOperations.rotateImage(context, uri, 90f)
+                                                        ActionKind.VIDEO_COMPRESS -> MediaTransformOperations.compressVideo(context, uri)
+                                                        ActionKind.AUDIO_COMPRESS -> MediaTransformOperations.compressAudio(context, uri)
+                                                        ActionKind.AUDIO_NORMALIZE -> MediaTransformOperations.normalizeAudio(context, uri)
+                                                        else -> MediaTransformOperations.thumbnail(context, uri)
+                                                    }
                                                     done++
                                                 } catch (_: Exception) { failed++ }
                                             }
