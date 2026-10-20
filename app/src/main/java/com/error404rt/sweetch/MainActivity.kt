@@ -85,6 +85,7 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
     var status by rememberSaveable { mutableStateOf("Выберите действие") }
     var cookieStatus by rememberSaveable { mutableStateOf("Cookies не импортированы") }
     var shizukuStatus by rememberSaveable { mutableStateOf(ShizukuBridge.status(context)) }
+    var potHelperStatus by rememberSaveable { mutableStateOf(PotHelperIntegration.status(context)) }
     val cookiePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { picked ->
         if (picked != null) scope.launch {
             try {
@@ -523,7 +524,7 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
     }
     if (showSettings) {
         AlertDialog(onDismissRequest = { showSettings = false }, containerColor = panel, title = { Text("Настройки меню", color = text) }, text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Форма меню", color = muted)
                 ModeTab("Круговое", style == MenuStyle.WHEEL, Modifier.fillMaxWidth(), text, muted, accent, edge) { style = MenuStyle.WHEEL }
                 ModeTab("Пазл", style == MenuStyle.PUZZLE, Modifier.fillMaxWidth(), text, muted, accent, edge) { style = MenuStyle.PUZZLE }
@@ -537,6 +538,45 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                         shizukuStatus = ShizukuBridge.status(context)
                     }, modifier = Modifier.weight(1f)) { Text("Запросить доступ", fontSize = 11.sp) }
                     OutlinedButton(onClick = { shizukuStatus = ShizukuBridge.status(context) }, modifier = Modifier.weight(1f)) { Text("Обновить", fontSize = 11.sp) }
+                }
+                HorizontalDivider(color = edge)
+                Text("PO TOKEN HELPER", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Text(potHelperStatus, color = muted, fontSize = 11.sp, lineHeight = 16.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        try {
+                            if (PotHelperIntegration.isInstalled(context)) {
+                                PotHelperIntegration.openHelper(context)
+                            } else {
+                                PotHelperIntegration.openOfficialReleases(context)
+                            }
+                            potHelperStatus = PotHelperIntegration.status(context)
+                        } catch (error: Exception) {
+                            potHelperStatus = "Не удалось открыть PotHelper: ${error.message ?: "ошибка Android"}"
+                        }
+                    }, modifier = Modifier.weight(1f)) {
+                        Text(if (PotHelperIntegration.isInstalled(context)) "Открыть помощник" else "Скачать APK", fontSize = 11.sp)
+                    }
+                    OutlinedButton(onClick = {
+                        potHelperStatus = PotHelperIntegration.status(context)
+                    }, modifier = Modifier.weight(1f)) {
+                        Text("Проверить", fontSize = 11.sp)
+                    }
+                }
+                if (PotHelperIntegration.isInstalled(context)) {
+                    OutlinedButton(onClick = {
+                        runCatching { PotHelperIntegration.openAppDetails(context) }
+                            .onFailure { potHelperStatus = "Не удалось открыть настройки приложения." }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Настройки PotHelper в Android")
+                    }
+                } else {
+                    TextButton(onClick = {
+                        runCatching { PotHelperIntegration.openOfficialReleases(context) }
+                            .onFailure { potHelperStatus = "Не удалось открыть официальный релиз." }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Официальные релизы PotHelper", color = accent)
+                    }
                 }
                 Text("ЖЕСТ КОНТЕКСТНОГО МЕНЮ", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                 Text("Долгое нажатие на элемент → кнопка уменьшения громкости. Android попросит вручную включить службу доступности.", color = muted, fontSize = 11.sp, lineHeight = 16.sp)
