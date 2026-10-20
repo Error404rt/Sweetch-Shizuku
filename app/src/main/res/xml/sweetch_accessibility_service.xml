@@ -3,6 +3,7 @@
     android:accessibilityEventTypes="typeViewLongClicked"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canRetrieveWindowContent="true"
+    android:canRequestFilterKeyEvents="true"
     android:description="@string/accessibility_service_description"
     android:notificationTimeout="50"
     android:flags="flagRequestFilterKeyEvents|flagRetrieveInteractiveWindows" />
