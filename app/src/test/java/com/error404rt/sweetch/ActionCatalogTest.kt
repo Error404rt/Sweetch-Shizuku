@@ -26,5 +26,7 @@ class ActionCatalogTest {
         assertTrue(ActionCatalog.items.any { it.kind == ActionKind.MP4 })
         assertTrue(ActionCatalog.items.any { it.kind == ActionKind.COMPRESS })
         assertTrue(ActionCatalog.items.any { it.kind == ActionKind.VIDEO_COMPRESS })
+        assertTrue(ActionCatalog.items.any { it.kind == ActionKind.PDF_TO_IMAGES })
+        assertTrue(ActionCatalog.items.any { it.kind == ActionKind.IMAGES_TO_PDF })
     }
 }
