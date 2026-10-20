@@ -13,8 +13,27 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 
+internal enum class MediaKind { IMAGE, AUDIO, VIDEO, OTHER }
+
 /** Real on-device audio/video transcoding using the maintained FFmpegKit runtime. */
 internal object MediaTransformOperations {
+    fun classify(context: Context, uri: Uri): MediaKind {
+        val mime = runCatching { context.contentResolver.getType(uri).orEmpty() }.getOrDefault("")
+        val name = runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index).orEmpty() else ""
+            }.orEmpty()
+        }.getOrDefault("")
+        val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        return when {
+            mime.startsWith("image/") || ext in setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "avif", "tif", "tiff") -> MediaKind.IMAGE
+            mime.startsWith("audio/") || ext in setOf("mp3", "m4a", "aac", "wav", "flac", "ogg", "opus", "wma") -> MediaKind.AUDIO
+            mime.startsWith("video/") || ext in setOf("mp4", "m4v", "mov", "mkv", "webm", "avi", "mpeg", "mpg", "3gp") -> MediaKind.VIDEO
+            else -> MediaKind.OTHER
+        }
+    }
+
     private data class Target(val extension: String, val args: List<String>, val mime: String)
 
     suspend fun convert(context: Context, source: Uri, format: String): String {
