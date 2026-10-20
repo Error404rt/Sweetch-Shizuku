@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
 
 private enum class MenuStyle { WHEEL, PUZZLE }
 private enum class WheelKind { CONVERT, TOOLS, ACTIONS }
-private enum class ActionKind { DOWNLOAD, SHARE, COPY, OPEN, HISTORY, SETTINGS, JPEG, PNG, WEBP, MP3, M4A, WAV, MP4, WEBM, GIF, COMPRESS, ROTATE, VIDEO_COMPRESS, THUMBNAIL }
+private enum class ActionKind { DOWNLOAD, SHARE, COPY, OPEN, HISTORY, SETTINGS, JPEG, PNG, WEBP, MP3, M4A, WAV, MP4, WEBM, GIF, COMPRESS, ROTATE, VIDEO_COMPRESS, THUMBNAIL, AUDIO_COMPRESS, AUDIO_NORMALIZE }
 
 private data class ActionItem(
     val id: String,
@@ -217,7 +217,7 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
 
                 Box(Modifier.fillMaxWidth().height(if (style == MenuStyle.WHEEL) 322.dp else 310.dp), contentAlignment = Alignment.Center) {
                     if (style == MenuStyle.WHEEL) {
-                        RadialActions(visibleActions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
+                        RadialActions(visibleActions, selected.id, dark, text, muted, panel, tile, edge, accent) { item ->
                             selectedId = item.id
                             when (item.kind) {
                                 ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP, ActionKind.MP3, ActionKind.M4A, ActionKind.WAV, ActionKind.MP4, ActionKind.WEBM, ActionKind.GIF -> {
@@ -276,7 +276,7 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                             }
                         }
                     } else {
-                        PuzzleActions(visibleActions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
+                        PuzzleActions(visibleActions, selected.id, dark, text, muted, panel, tile, edge, accent) { item ->
                             selectedId = item.id
                             when (item.kind) {
                                 ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP, ActionKind.MP3, ActionKind.M4A, ActionKind.WAV, ActionKind.MP4, ActionKind.WEBM, ActionKind.GIF -> {
