@@ -13,7 +13,7 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 
-internal enum class MediaKind { IMAGE, AUDIO, VIDEO, OTHER }
+internal enum class MediaKind { IMAGE, AUDIO, VIDEO, PDF, OTHER }
 
 /** Real on-device audio/video transcoding using the maintained FFmpegKit runtime. */
 internal object MediaTransformOperations {
@@ -30,6 +30,7 @@ internal object MediaTransformOperations {
             mime.startsWith("image/") || ext in setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "avif", "tif", "tiff") -> MediaKind.IMAGE
             mime.startsWith("audio/") || ext in setOf("mp3", "m4a", "aac", "wav", "flac", "ogg", "opus", "wma") -> MediaKind.AUDIO
             mime.startsWith("video/") || ext in setOf("mp4", "m4v", "mov", "mkv", "webm", "avi", "mpeg", "mpg", "3gp") -> MediaKind.VIDEO
+            mime == "application/pdf" || ext == "pdf" -> MediaKind.PDF
             else -> MediaKind.OTHER
         }
     }
