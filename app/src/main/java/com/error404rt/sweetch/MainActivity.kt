@@ -108,7 +108,7 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
         picked.forEach { uri -> try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { } }
         status = if (picked.isEmpty()) "Файлы не выбраны" else "Выбрано файлов: ${picked.size}"
     }
-    val selectionKinds = selectedFiles.map { MediaTransformOperations.classify(context, it) }.distinct()
+    val selectionKinds = remember(selectedFiles) { selectedFiles.map { MediaTransformOperations.classify(context, it) }.distinct() }
     val candidateActions = actions.filter { item ->
         item.wheel == wheelKind && when (wheelKind) {
             WheelKind.ACTIONS -> true
