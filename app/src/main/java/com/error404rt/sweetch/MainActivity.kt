@@ -25,6 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +91,7 @@ private val actions = listOf(
 @Composable
 private fun SweetchHome() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var dark by rememberSaveable { mutableStateOf(true) }
     var style by rememberSaveable { mutableStateOf(MenuStyle.WHEEL) }
     var selectedId by rememberSaveable { mutableStateOf("download") }
