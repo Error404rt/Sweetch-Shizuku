@@ -115,7 +115,6 @@ private fun SweetchHome(initialText: String = "") {
         status = if (picked.isEmpty()) "Файлы не выбраны" else "Выбрано файлов: ${picked.size}"
     }
     val visibleActions = actions.filter { it.wheel == wheelKind }
-    if (visibleActions.none { it.id == selectedId }) selectedId = visibleActions.first().id
     val selected = visibleActions.first { it.id == selectedId }
     val page = if (dark) Ink else Paper
     val panel = if (dark) Panel else PaperPanel
