@@ -207,7 +207,13 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                         status = "Конвертирую в $format…"
                                         val result = withContext(Dispatchers.IO) {
                                             var done = 0; var failed = 0
-                                            selectedFiles.forEach { uri -> try { MediaFileOperations.convertImage(context, uri, format); done++ } catch (_: Exception) { failed++ } }
+                                            selectedFiles.forEach { uri ->
+                                                try {
+                                                    if (format in setOf("JPEG", "PNG", "WEBP")) MediaFileOperations.convertImage(context, uri, format)
+                                                    else MediaTransformOperations.convert(context, uri, format)
+                                                    done++
+                                                } catch (_: Exception) { failed++ }
+                                            }
                                             done to failed
                                         }
                                         status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
