@@ -49,6 +49,12 @@ internal object MediaTransformOperations {
         return run(context, source, target, "converted")
     }
 
+    suspend fun compressAudio(context: Context, source: Uri): String =
+        run(context, source, Target("mp3", listOf("-vn", "-c:a", "libmp3lame", "-b:a", "128k"), "audio/mpeg"), "compressed")
+
+    suspend fun normalizeAudio(context: Context, source: Uri): String =
+        run(context, source, Target("mp3", listOf("-vn", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "libmp3lame", "-b:a", "192k"), "audio/mpeg"), "normalized")
+
     suspend fun compressVideo(context: Context, source: Uri): String =
         run(context, source, Target("mp4", listOf("-c:v", "mpeg4", "-q:v", "7", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"), "video/mp4"), "compressed")
 
