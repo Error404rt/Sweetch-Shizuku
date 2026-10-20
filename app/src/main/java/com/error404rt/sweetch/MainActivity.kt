@@ -62,7 +62,7 @@ private val PaperMuted = Color(0xFF77747D)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { SweetchHome() }
+        setContent { SweetchHome(initialText = intent?.getCharSequenceExtra(android.content.Intent.EXTRA_TEXT)?.toString() ?: intent?.getCharSequenceExtra(android.content.Intent.EXTRA_PROCESS_TEXT)?.toString().orEmpty()) }
     }
 }
 
@@ -89,13 +89,13 @@ private val actions = listOf(
 )
 
 @Composable
-private fun SweetchHome() {
+private fun SweetchHome(initialText: String = "") {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var dark by rememberSaveable { mutableStateOf(true) }
     var style by rememberSaveable { mutableStateOf(MenuStyle.WHEEL) }
     var selectedId by rememberSaveable { mutableStateOf("download") }
-    var url by rememberSaveable { mutableStateOf("") }
+    var url by rememberSaveable { mutableStateOf(initialText) }
     var showUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showHistory by rememberSaveable { mutableStateOf(false) }
