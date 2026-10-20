@@ -1,526 +1,334 @@
 package com.error404rt.sweetch
 
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+import java.net.URL
 import kotlin.math.cos
 import kotlin.math.sin
+
+private val Ink = Color(0xFF171719)
+private val Panel = Color(0xFF222225)
+private val Tile = Color(0xFF2B2B30)
+private val Muted = Color(0xFFAAA9B0)
+private val Red = Color(0xFFED2945)
+private val RedDeep = Color(0xFF9F1830)
+private val Paper = Color(0xFFF4F2F1)
+private val PaperPanel = Color(0xFFFFFFFF)
+private val PaperText = Color(0xFF242329)
+private val PaperMuted = Color(0xFF77747D)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { SweetchApp() }
+        setContent { SweetchHome() }
     }
 }
 
-private enum class MenuMode { WHEEL, PUZZLE }
+private enum class MenuStyle { WHEEL, PUZZLE }
+private enum class ActionKind { DOWNLOAD, SHARE, COPY, OPEN, HISTORY, SETTINGS }
 
-private data class SweetchPalette(
-    val page: Color,
-    val panel: Color,
-    val tile: Color,
-    val hub: Color,
-    val text: Color,
-    val muted: Color,
-    val edge: Color,
-    val accent: Color,
-    val accentSecondary: Color
+private data class ActionItem(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val kind: ActionKind,
+    val glyph: Glyph
 )
 
-private fun paletteFor(dark: Boolean) = if (dark) {
-    SweetchPalette(
-        page = Color(0xFF0D0D11),
-        panel = Color(0xFF131317),
-        tile = Color(0xFF202025),
-        hub = Color(0xFF101014),
-        text = Color(0xFFFAF6F7),
-        muted = Color(0xFFAA9DA3),
-        edge = Color(0x3DFFFFFF),
-        accent = Color(0xFFEB2440),
-        accentSecondary = Color(0xFFAC102D)
-    )
-} else {
-    SweetchPalette(
-        page = Color(0xFFEDF4FC),
-        panel = Color(0xFFF8FCFF),
-        tile = Color(0xFFFFFFFF),
-        hub = Color(0xFFF4FAFF),
-        text = Color(0xFF152940),
-        muted = Color(0xFF556D85),
-        edge = Color(0x40296FAD),
-        accent = Color(0xFF1771CB),
-        accentSecondary = Color(0xFF42A5EF)
-    )
-}
+private enum class Glyph { DOWNLOAD, SHARE, COPY, LINK, HISTORY, SETTINGS }
+
+private val actions = listOf(
+    ActionItem("download", "Скачать", "Ссылка на файл или медиа", ActionKind.DOWNLOAD, Glyph.DOWNLOAD),
+    ActionItem("share", "Поделиться", "Передать ссылку в приложение", ActionKind.SHARE, Glyph.SHARE),
+    ActionItem("copy", "Копировать", "Скопировать ссылку", ActionKind.COPY, Glyph.COPY),
+    ActionItem("open", "Открыть", "Открыть ссылку в браузере", ActionKind.OPEN, Glyph.LINK),
+    ActionItem("history", "Загрузки", "История системных загрузок", ActionKind.HISTORY, Glyph.HISTORY),
+    ActionItem("settings", "Настройки", "Режим меню и оформление", ActionKind.SETTINGS, Glyph.SETTINGS)
+)
 
 @Composable
-private fun SweetchApp() {
-    var darkTheme by rememberSaveable { mutableStateOf(true) }
-    var menuMode by rememberSaveable { mutableStateOf(MenuMode.WHEEL) }
-    var selectedActionId by rememberSaveable { mutableStateOf<String?>(null) }
+private fun SweetchHome() {
+    val context = LocalContext.current
+    var dark by rememberSaveable { mutableStateOf(true) }
+    var style by rememberSaveable { mutableStateOf(MenuStyle.WHEEL) }
+    var selectedId by rememberSaveable { mutableStateOf("download") }
+    var url by rememberSaveable { mutableStateOf("") }
+    var showUrlDialog by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    var status by rememberSaveable { mutableStateOf("Выберите действие") }
+    val selected = actions.first { it.id == selectedId }
+    val page = if (dark) Ink else Paper
+    val panel = if (dark) Panel else PaperPanel
+    val tile = if (dark) Tile else Color(0xFFF1EFF0)
+    val text = if (dark) Color(0xFFF7F4F4) else PaperText
+    val muted = if (dark) Muted else PaperMuted
+    val edge = if (dark) Color(0x33FFFFFF) else Color(0x22242429)
+    val accent = Red
 
-    val palette = paletteFor(darkTheme)
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val selectedAction = ActionCatalog.items.firstOrNull { it.id == selectedActionId }
-
-    val colorScheme = if (darkTheme) {
-        darkColorScheme(
-            primary = palette.accent,
-            secondary = palette.accentSecondary,
-            background = palette.page,
-            surface = palette.panel,
-            onBackground = palette.text,
-            onSurface = palette.text
-        )
-    } else {
-        lightColorScheme(
-            primary = palette.accent,
-            secondary = palette.accentSecondary,
-            background = palette.page,
-            surface = palette.panel,
-            onBackground = palette.text,
-            onSurface = palette.text
-        )
-    }
-
-    MaterialTheme(colorScheme = colorScheme) {
-        Surface(modifier = Modifier.fillMaxSize(), color = palette.page) {
-            Scaffold(
-                containerColor = palette.page,
-                snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-            ) { scaffoldPadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(scaffoldPadding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Header(
-                        palette = palette,
-                        darkTheme = darkTheme,
-                        onToggleTheme = { darkTheme = !darkTheme }
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(
-                            text = "КОНТЕКСТНЫЕ ДЕЙСТВИЯ",
-                            color = palette.accent,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.7.sp
-                        )
-                        Text(
-                            text = "Одно касание — нужный инструмент",
-                            color = palette.text,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Сохраняем характер оригинала и добавляем новый формат меню.",
-                            color = palette.muted,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp
-                        )
+    MaterialTheme(colorScheme = if (dark) darkColorScheme(primary = accent, background = page, surface = panel) else lightColorScheme(primary = accent, background = page, surface = panel)) {
+        Surface(Modifier.fillMaxSize(), color = page) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Box(Modifier.size(46.dp).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(Red, RedDeep))), contentAlignment = Alignment.Center) {
+                        Text("S", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Black)
                     }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        MenuModeButton(
-                            modifier = Modifier.weight(1f),
-                            title = "Круговое",
-                            mark = "◎",
-                            selected = menuMode == MenuMode.WHEEL,
-                            palette = palette,
-                            onClick = { menuMode = MenuMode.WHEEL }
-                        )
-                        MenuModeButton(
-                            modifier = Modifier.weight(1f),
-                            title = "Пазл",
-                            mark = "🧩",
-                            selected = menuMode == MenuMode.PUZZLE,
-                            palette = palette,
-                            onClick = { menuMode = MenuMode.PUZZLE }
-                        )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("SWEETCH", color = text, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.4.sp)
+                        Text("ANDROID · CONTEXT TOOLS", color = muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
                     }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(318.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (menuMode == MenuMode.WHEEL) {
-                            WheelMenu(
-                                palette = palette,
-                                selectedActionId = selectedActionId,
-                                onAction = { action ->
-                                    selectedActionId = action.id
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Выбрано: " + action.title)
-                                    }
-                                }
-                            )
-                        } else {
-                            PuzzleMenu(
-                                palette = palette,
-                                selectedActionId = selectedActionId,
-                                onAction = { action ->
-                                    selectedActionId = action.id
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Выбрано: " + action.title)
-                                    }
-                                }
-                            )
+                    Surface(Modifier.size(42.dp).clickable { dark = !dark }, shape = CircleShape, color = panel, border = androidx.compose.foundation.BorderStroke(1.dp, edge)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(if (dark) "☼" else "◐", color = accent, fontSize = 22.sp)
                         }
                     }
+                }
 
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
-                        color = palette.panel,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, palette.edge)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("КОНТЕКСТНОЕ МЕНЮ", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text("Нужное действие — сразу", color = text, fontSize = 25.sp, fontWeight = FontWeight.Bold, lineHeight = 30.sp)
+                    Text("Выберите инструмент. Круговое меню сохраняет логику Sweetch, пазл — альтернативная раскладка.", color = muted, fontSize = 13.sp, lineHeight = 19.sp)
+                }
+
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(panel).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ModeTab("Круговое", style == MenuStyle.WHEEL, Modifier.weight(1f), text, muted, accent, edge) { style = MenuStyle.WHEEL }
+                    ModeTab("Пазл", style == MenuStyle.PUZZLE, Modifier.weight(1f), text, muted, accent, edge) { style = MenuStyle.PUZZLE }
+                }
+
+                Box(Modifier.fillMaxWidth().height(if (style == MenuStyle.WHEEL) 322.dp else 310.dp), contentAlignment = Alignment.Center) {
+                    if (style == MenuStyle.WHEEL) {
+                        RadialActions(actions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
+                            selectedId = item.id
+                            when (item.kind) {
+                                ActionKind.DOWNLOAD -> showUrlDialog = true
+                                ActionKind.SETTINGS -> showSettings = true
+                                ActionKind.HISTORY -> showHistory = true
+                                ActionKind.COPY -> { if (url.isNotBlank()) copyText(context, url, status = { status = it }) else status = "Сначала укажите ссылку" }
+                                ActionKind.OPEN -> openUrl(context, url) { status = it }
+                                ActionKind.SHARE -> shareUrl(context, url) { status = it }
+                            }
+                        }
+                    } else {
+                        PuzzleActions(actions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
+                            selectedId = item.id
+                            when (item.kind) {
+                                ActionKind.DOWNLOAD -> showUrlDialog = true
+                                ActionKind.SETTINGS -> showSettings = true
+                                ActionKind.HISTORY -> showHistory = true
+                                ActionKind.COPY -> { if (url.isNotBlank()) copyText(context, url) { status = it } else status = "Сначала укажите ссылку" }
+                                ActionKind.OPEN -> openUrl(context, url) { status = it }
+                                ActionKind.SHARE -> shareUrl(context, url) { status = it }
+                            }
+                        }
+                    }
+                }
+
+                Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = panel, border = androidx.compose.foundation.BorderStroke(1.dp, edge)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(accent.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
+                                GlyphIcon(selected.glyph, accent, Modifier.size(22.dp))
+                            }
+                            Spacer(Modifier.width(11.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(selected.title, color = text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text(selected.subtitle, color = muted, fontSize = 11.sp)
+                            }
+                            Text("●", color = accent, fontSize = 9.sp)
+                        }
+                        HorizontalDivider(color = edge)
+                        Text("ССЫЛКА", color = muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                        OutlinedTextField(
+                            value = url,
+                            onValueChange = { url = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("https://…", color = muted) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = text, unfocusedTextColor = text,
+                                focusedBorderColor = accent, unfocusedBorderColor = edge,
+                                cursorColor = accent, focusedContainerColor = tile, unfocusedContainerColor = tile
+                            )
+                        )
+                        Button(
+                            onClick = { showUrlDialog = true },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(13.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = accent)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(palette.accent, palette.accentSecondary)
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("S", color = Color.White, fontWeight = FontWeight.Black, fontSize = 20.sp)
-                            }
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    text = if (selectedAction == null) "Sweetch: предпросмотр меню" else selectedAction.title,
-                                    color = palette.text,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    text = if (selectedAction == null) {
-                                        "Выберите пункт меню для предпросмотра."
-                                    } else {
-                                        selectedAction.description
-                                    },
-                                    color = palette.muted,
-                                    fontSize = 11.sp,
-                                    lineHeight = 15.sp
-                                )
-                            }
-                            Text(
-                                text = if (selectedAction == null) "···" else "✓",
-                                color = palette.accent,
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            GlyphIcon(Glyph.DOWNLOAD, Color.White, Modifier.size(18.dp))
+                            Spacer(Modifier.width(9.dp))
+                            Text("Загрузить по ссылке", fontWeight = FontWeight.Bold)
                         }
+                        Text(status, color = muted, fontSize = 11.sp, lineHeight = 15.sp)
                     }
-
-                    Text(
-                        text = "ЭТО ЭТАП UI-КАРКАСА • Загрузчики и системные действия подключаются отдельными модулями.",
-                        color = palette.muted,
-                        fontSize = 9.sp,
-                        lineHeight = 14.sp,
-                        letterSpacing = 0.4.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
-                    )
                 }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    InfoCard("01", "Прямые ссылки", "Загрузка файлов через Android DownloadManager", Modifier.weight(1f), panel, edge, accent, text, muted)
+                    InfoCard("02", "Системная очередь", "Уведомления и управление загрузкой Android", Modifier.weight(1f), panel, edge, accent, text, muted)
+                }
+                Text("Sweetch · Android Edition", color = muted, fontSize = 10.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
         }
     }
-}
 
-@Composable
-private fun Header(
-    palette: SweetchPalette,
-    darkTheme: Boolean,
-    onToggleTheme: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .shadow(9.dp, RoundedCornerShape(14.dp))
-                .clip(RoundedCornerShape(14.dp))
-                .background(Brush.linearGradient(listOf(palette.accent, palette.accentSecondary))),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("S", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
-        }
-        Spacer(Modifier.width(11.dp))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("SWEETCH", color = palette.text, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, letterSpacing = 1.1.sp)
-            Text("ANDROID EDITION", color = palette.muted, fontWeight = FontWeight.Medium, fontSize = 9.sp, letterSpacing = 1.8.sp)
-        }
-        Surface(
-            shape = CircleShape,
-            color = palette.panel,
-            border = androidx.compose.foundation.BorderStroke(1.dp, palette.edge),
-            modifier = Modifier.size(42.dp).clickable(onClick = onToggleTheme)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (darkTheme) "☼" else "◐",
-                    fontSize = 21.sp,
-                    color = palette.accent
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MenuModeButton(
-    modifier: Modifier,
-    title: String,
-    mark: String,
-    selected: Boolean,
-    palette: SweetchPalette,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(14.dp)
-    Surface(
-        modifier = modifier.height(46.dp).clickable(onClick = onClick),
-        shape = shape,
-        color = if (selected) palette.accent.copy(alpha = 0.15f) else palette.panel,
-        border = androidx.compose.foundation.BorderStroke(
-            if (selected) 1.4.dp else 1.dp,
-            if (selected) palette.accent else palette.edge
+    if (showUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            containerColor = panel,
+            title = { Text("Загрузка по ссылке", color = text, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Android DownloadManager принимает прямые HTTP(S)-ссылки на файлы. Страницы видеосервисов требуют отдельного адаптера и здесь не притворяются поддерживаемыми.", color = muted, fontSize = 13.sp, lineHeight = 18.sp)
+                    OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("URL") })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUrlDialog = false
+                    enqueueDirectDownload(context, url) { status = it }
+                }) { Text("Начать", color = accent, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showUrlDialog = false }) { Text("Отмена", color = muted) } }
         )
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Text(mark, color = if (selected) palette.accent else palette.muted, fontSize = 18.sp)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                title,
-                color = if (selected) palette.text else palette.muted,
-                fontSize = 13.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-            )
+    }
+    if (showSettings) {
+        AlertDialog(onDismissRequest = { showSettings = false }, containerColor = panel, title = { Text("Настройки меню", color = text) }, text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Форма меню", color = muted)
+                ModeTab("Круговое", style == MenuStyle.WHEEL, Modifier.fillMaxWidth(), text, muted, accent, edge) { style = MenuStyle.WHEEL }
+                ModeTab("Пазл", style == MenuStyle.PUZZLE, Modifier.fillMaxWidth(), text, muted, accent, edge) { style = MenuStyle.PUZZLE }
+                Text("Тема: ${if (dark) "тёмная" else "светлая"}", color = muted)
+            }
+        }, confirmButton = { TextButton(onClick = { dark = !dark }) { Text("Сменить тему", color = accent) } }, dismissButton = { TextButton(onClick = { showSettings = false }) { Text("Готово", color = muted) } })
+    }
+    if (showHistory) {
+        AlertDialog(onDismissRequest = { showHistory = false }, containerColor = panel, title = { Text("Загрузки Android", color = text) }, text = {
+            Text("Очередь и завершённые файлы доступны в системном приложении «Загрузки». Sweetch передаёт прямые ссылки системному DownloadManager, чтобы загрузки переживали закрытие приложения.", color = muted, fontSize = 13.sp, lineHeight = 19.sp)
+        }, confirmButton = { TextButton(onClick = { showHistory = false }) { Text("Понятно", color = accent) } })
+    }
+}
+
+@Composable
+private fun ModeTab(label: String, selected: Boolean, modifier: Modifier, text: Color, muted: Color, accent: Color, edge: Color, onClick: () -> Unit) {
+    Surface(modifier.height(44.dp).clickable(onClick = onClick), shape = RoundedCornerShape(12.dp), color = if (selected) accent.copy(alpha = .14f) else Color.Transparent, border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) accent else Color.Transparent)) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(label, color = if (selected) text else muted, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
         }
     }
 }
 
 @Composable
-private fun WheelMenu(
-    palette: SweetchPalette,
-    selectedActionId: String?,
-    onAction: (MenuAction) -> Unit
-) {
-    BoxWithConstraints(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        val wheelSize = minOf(maxWidth, maxHeight).coerceAtMost(320.dp)
-        val center = wheelSize / 2f
-        val chipSize = 64.dp
-        val orbit = wheelSize * 0.32f
-
-        Box(modifier = Modifier.size(wheelSize)) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val centerPoint = Offset(size.width / 2f, size.height / 2f)
-                val ringRadius = minOf(size.width, size.height) * 0.405f
-                drawCircle(
-                    color = palette.edge,
-                    radius = ringRadius,
-                    center = centerPoint,
-                    style = Stroke(width = 1.4.dp.toPx())
-                )
-                drawCircle(
-                    color = palette.edge.copy(alpha = 0.45f),
-                    radius = ringRadius * 0.72f,
-                    center = centerPoint,
-                    style = Stroke(width = 1.dp.toPx())
-                )
-                ActionCatalog.items.forEachIndexed { index, action ->
-                    val isSelected = action.id == selectedActionId
-                    drawArc(
-                        color = if (isSelected) palette.accent else palette.accent.copy(alpha = 0.58f),
-                        startAngle = -120f + index * 60f,
-                        sweepAngle = 39f,
-                        useCenter = false,
-                        topLeft = Offset(centerPoint.x - ringRadius, centerPoint.y - ringRadius),
-                        size = Size(ringRadius * 2f, ringRadius * 2f),
-                        style = Stroke(width = if (isSelected) 4.dp.toPx() else 2.6.dp.toPx(), cap = StrokeCap.Round)
-                    )
+private fun RadialActions(items: List<ActionItem>, selectedId: String, dark: Boolean, text: Color, muted: Color, panel: Color, tile: Color, edge: Color, accent: Color, onAction: (ActionItem) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val d = minOf(maxWidth, maxHeight).coerceAtMost(322.dp)
+        val chip = 82.dp
+        val radius = d * .34f
+        Box(Modifier.size(d)) {
+            Canvas(Modifier.fillMaxSize()) {
+                val c = Offset(size.width / 2, size.height / 2)
+                val outer = size.minDimension * .47f
+                val inner = size.minDimension * .22f
+                items.forEachIndexed { i, item ->
+                    val start = -90f + i * (360f / items.size) - (360f / items.size) / 2f + 2.2f
+                    val sweep = 360f / items.size - 4.4f
+                    val path = Path()
+                    val rect = androidx.compose.ui.geometry.Rect(c.x - outer, c.y - outer, c.x + outer, c.y + outer)
+                    val innerRect = androidx.compose.ui.geometry.Rect(c.x - inner, c.y - inner, c.x + inner, c.y + inner)
+                    path.arcTo(rect, start, sweep, false)
+                    val endAngle = Math.toRadians((start + sweep).toDouble())
+                    path.lineTo(c.x + inner * cos(endAngle).toFloat(), c.y + inner * sin(endAngle).toFloat())
+                    path.arcTo(innerRect, start + sweep, -sweep, false)
+                    path.close()
+                    drawPath(path, if (item.id == selectedId) accent.copy(alpha = .24f) else if (dark) tile else Color(0xFFE8E5E6))
+                    drawPath(path, if (item.id == selectedId) accent else edge, style = Stroke(width = if (item.id == selectedId) 2.dp.toPx() else 1.dp.toPx()))
+                }
+                drawCircle(accent.copy(alpha = .12f), radius = inner * .78f, center = c)
+            }
+            items.forEachIndexed { i, item ->
+                val angle = Math.toRadians(-90.0 + i * (360.0 / items.size))
+                val x = d.value / 2f + radius.value * cos(angle).toFloat() - chip.value / 2f
+                val y = d.value / 2f + radius.value * sin(angle).toFloat() - chip.value / 2f
+                Column(
+                    Modifier.offset(x.dp, y.dp).size(chip).clip(RoundedCornerShape(16.dp)).clickable { onAction(item) }.padding(5.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    GlyphIcon(item.glyph, if (item.id == selectedId) accent else text, Modifier.size(23.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Text(item.title, color = if (item.id == selectedId) accent else text, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
             }
-
-            ActionCatalog.items.forEachIndexed { index, action ->
-                val angle = Math.toRadians(-90.0 + index * 60.0)
-                val left = center.value + orbit.value * cos(angle).toFloat() - chipSize.value / 2f
-                val top = center.value + orbit.value * sin(angle).toFloat() - chipSize.value / 2f
-                WheelActionChip(
-                    modifier = Modifier.offset(x = Dp(left), y = Dp(top)).size(chipSize),
-                    action = action,
-                    selected = action.id == selectedActionId,
-                    palette = palette,
-                    onClick = { onAction(action) }
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(82.dp)
-                    .shadow(12.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(palette.hub, palette.panel)))
-                    .border(1.5.dp, palette.accent.copy(alpha = 0.75f), CircleShape)
-                    .clickable { onAction(ActionCatalog.items.last()) },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("S", color = palette.accent, fontSize = 27.sp, fontWeight = FontWeight.Black)
-                    Text("MENU", color = palette.muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                }
+            Column(Modifier.align(Alignment.Center).width(d * .38f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("SWEETCH", color = text, fontSize = 10.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.ExtraBold)
+                Text(items.first { it.id == selectedId }.title, color = accent, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
+                Text("ДЕЙСТВИЕ", color = muted, fontSize = 8.sp, letterSpacing = 1.4.sp)
             }
         }
     }
 }
 
 @Composable
-private fun WheelActionChip(
-    modifier: Modifier,
-    action: MenuAction,
-    selected: Boolean,
-    palette: SweetchPalette,
-    onClick: () -> Unit
-) {
-    val shape = CircleShape
-    Box(
-        modifier = modifier
-            .shadow(if (selected) 11.dp else 5.dp, shape)
-            .clip(shape)
-            .background(
-                if (selected) Brush.linearGradient(listOf(palette.accent, palette.accentSecondary))
-                else Brush.linearGradient(listOf(palette.tile, palette.panel))
-            )
-            .border(1.dp, if (selected) palette.accent else palette.edge, shape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(
-                action.glyph,
-                color = if (selected) Color.White else palette.accent,
-                fontWeight = FontWeight.Bold,
-                fontSize = if (action.glyph.length > 1) 16.sp else 20.sp
-            )
-            Text(
-                action.title,
-                color = if (selected) Color.White else palette.text,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 8.sp,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-@Composable
-private fun PuzzleMenu(
-    palette: SweetchPalette,
-    selectedActionId: String?,
-    onAction: (MenuAction) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(9.dp)
-    ) {
-        ActionCatalog.items.chunked(3).forEachIndexed { rowIndex, rowActions ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                rowActions.forEachIndexed { columnIndex, action ->
-                    val index = rowIndex * 3 + columnIndex
-                    PuzzleActionPiece(
-                        modifier = Modifier.weight(1f).height(93.dp),
-                        action = action,
-                        variant = index,
-                        selected = action.id == selectedActionId,
-                        palette = palette,
-                        onClick = { onAction(action) }
-                    )
+private fun PuzzleActions(items: List<ActionItem>, selectedId: String, dark: Boolean, text: Color, muted: Color, panel: Color, tile: Color, edge: Color, accent: Color, onAction: (ActionItem) -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.chunked(2).forEachIndexed { row, pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEachIndexed { col, item ->
+                    val chosen = item.id == selectedId
+                    Column(
+                        Modifier.weight(1f).height(94.dp).clip(RoundedCornerShape(18.dp)).background(if (chosen) accent.copy(alpha = .17f) else panel)
+                            .border(1.dp, if (chosen) accent else edge, RoundedCornerShape(18.dp))
+                            .clickable { onAction(item) }.padding(12.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(if (chosen) accent else tile), contentAlignment = Alignment.Center) {
+                                GlyphIcon(item.glyph, if (chosen) Color.White else accent, Modifier.size(18.dp))
+                            }
+                            Text("0${row * 2 + col + 1}", color = muted, fontSize = 9.sp, letterSpacing = 1.sp)
+                        }
+                        Text(item.title, color = if (chosen) accent else text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(item.subtitle, color = muted, fontSize = 9.sp, maxLines = 1)
+                    }
                 }
             }
         }
@@ -528,52 +336,101 @@ private fun PuzzleMenu(
 }
 
 @Composable
-private fun PuzzleActionPiece(
-    modifier: Modifier,
-    action: MenuAction,
-    variant: Int,
-    selected: Boolean,
-    palette: SweetchPalette,
-    onClick: () -> Unit
-) {
-    val shape = remember(variant) { PuzzlePieceShape(variant) }
-    Box(
-        modifier = modifier
-            .shadow(if (selected) 9.dp else 4.dp, shape)
-            .clip(shape)
-            .background(
-                if (selected) Brush.linearGradient(listOf(palette.accent, palette.accentSecondary))
-                else Brush.linearGradient(listOf(palette.tile, palette.panel))
-            )
-            .border(
-                width = if (selected) 1.5.dp else 1.dp,
-                brush = Brush.linearGradient(
-                    listOf(
-                        if (selected) palette.accent else palette.edge,
-                        if (selected) palette.accentSecondary else palette.edge.copy(alpha = 0.55f)
-                    )
-                ),
-                shape = shape
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                action.glyph,
-                color = if (selected) Color.White else palette.accent,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                action.title,
-                color = if (selected) Color.White else palette.text,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
+private fun GlyphIcon(glyph: Glyph, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val sw = (size.minDimension * .09f).coerceAtLeast(1.4f)
+        fun line(x1: Float, y1: Float, x2: Float, y2: Float) = drawLine(color, Offset(x1, y1), Offset(x2, y2), sw, cap = StrokeCap.Round)
+        when (glyph) {
+            Glyph.DOWNLOAD -> {
+                line(w*.5f,h*.12f,w*.5f,h*.62f); line(w*.28f,h*.43f,w*.5f,h*.65f); line(w*.72f,h*.43f,w*.5f,h*.65f)
+                line(w*.2f,h*.77f,w*.8f,h*.77f); line(w*.2f,h*.77f,w*.2f,h*.88f); line(w*.8f,h*.77f,w*.8f,h*.88f)
+            }
+            Glyph.SHARE -> {
+                drawCircle(color, sw*1.8f, Offset(w*.25f,h*.5f)); drawCircle(color, sw*1.8f, Offset(w*.72f,h*.24f)); drawCircle(color, sw*1.8f, Offset(w*.72f,h*.77f))
+                line(w*.3f,h*.46f,w*.66f,h*.27f); line(w*.3f,h*.54f,w*.66f,h*.73f)
+            }
+            Glyph.COPY -> {
+                drawRoundRect(color, Offset(w*.32f,h*.15f), Size(w*.5f,h*.57f), androidx.compose.ui.geometry.CornerRadius(sw*2), style=Stroke(sw))
+                drawRoundRect(color, Offset(w*.16f,h*.31f), Size(w*.5f,h*.57f), androidx.compose.ui.geometry.CornerRadius(sw*2), style=Stroke(sw))
+            }
+            Glyph.LINK -> {
+                drawRoundRect(color, Offset(w*.08f,h*.28f), Size(w*.52f,h*.34f), androidx.compose.ui.geometry.CornerRadius(h*.17f), style=Stroke(sw))
+                drawRoundRect(color, Offset(w*.4f,h*.38f), Size(w*.52f,h*.34f), androidx.compose.ui.geometry.CornerRadius(h*.17f), style=Stroke(sw))
+                line(w*.34f,h*.5f,w*.66f,h*.5f)
+            }
+            Glyph.HISTORY -> {
+                drawArc(color, 210f, 300f, false, Offset(w*.14f,h*.14f), Size(w*.72f,h*.72f), style=Stroke(sw, cap=StrokeCap.Round))
+                line(w*.12f,h*.2f,w*.12f,h*.43f); line(w*.12f,h*.2f,w*.35f,h*.2f); line(w*.5f,h*.3f,w*.5f,h*.5f); line(w*.5f,h*.5f,w*.67f,h*.59f)
+            }
+            Glyph.SETTINGS -> {
+                drawCircle(color, w*.31f, Offset(w*.5f,h*.5f), style=Stroke(sw))
+                drawCircle(color, w*.1f, Offset(w*.5f,h*.5f))
+                for (i in 0..7) { val a = Math.PI*i/4; line(w*.5f+cos(a).toFloat()*w*.33f,h*.5f+sin(a).toFloat()*h*.33f,w*.5f+cos(a).toFloat()*w*.44f,h*.5f+sin(a).toFloat()*h*.44f) }
+            }
         }
     }
+}
+
+@Composable
+private fun InfoCard(number: String, title: String, body: String, modifier: Modifier, panel: Color, edge: Color, accent: Color, text: Color, muted: Color) {
+    Surface(modifier, shape = RoundedCornerShape(15.dp), color = panel, border = androidx.compose.foundation.BorderStroke(1.dp, edge)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(number, color = accent, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.3.sp)
+            Text(title, color = text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(body, color = muted, fontSize = 10.sp, lineHeight = 14.sp)
+        }
+    }
+}
+
+private fun enqueueDirectDownload(context: Context, rawUrl: String, result: (String) -> Unit) {
+    val uri = try { Uri.parse(rawUrl.trim()) } catch (_: Exception) { null }
+    if (uri == null || uri.scheme !in listOf("http", "https") || uri.host.isNullOrBlank()) {
+        result("Введите корректную ссылку HTTP или HTTPS.")
+        Toast.makeText(context, "Некорректная ссылка", Toast.LENGTH_SHORT).show()
+        return
+    }
+    try {
+        val request = DownloadManager.Request(uri)
+            .setTitle(uri.lastPathSegment?.takeIf { it.isNotBlank() } ?: "Sweetch download")
+            .setDescription("Загрузка добавлена через Sweetch")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(false)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeFileName(uri.lastPathSegment))
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        manager.enqueue(request)
+        result("Загрузка добавлена в системную очередь Android. Проверяйте уведомления.")
+        Toast.makeText(context, "Загрузка добавлена", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        result("Не удалось добавить загрузку: ${e.localizedMessage ?: "ошибка Android"}")
+    }
+}
+
+private fun safeFileName(raw: String?): String {
+    val name = raw?.substringAfterLast('/')?.take(120)?.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    return name?.takeIf { it.isNotBlank() && it != "." && it != ".." } ?: "sweetch_download"
+}
+
+private fun copyText(context: Context, value: String, status: (String) -> Unit) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Sweetch URL", value))
+    status("Ссылка скопирована в буфер обмена.")
+}
+
+private fun openUrl(context: Context, raw: String, status: (String) -> Unit) {
+    val uri = Uri.parse(raw.trim())
+    if (uri.scheme !in listOf("http", "https") || uri.host.isNullOrBlank()) { status("Сначала введите корректную ссылку HTTP(S)."); return }
+    try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri)); status("Открываю ссылку…") }
+    catch (_: Exception) { status("Не найдено приложение для открытия ссылки.") }
+}
+
+private fun shareUrl(context: Context, raw: String, status: (String) -> Unit) {
+    if (raw.isBlank()) { status("Сначала введите ссылку."); return }
+    try {
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, raw.trim()) }
+        context.startActivity(android.content.Intent.createChooser(intent, "Поделиться ссылкой"))
+        status("Открыто системное меню «Поделиться».")
+    } catch (_: Exception) { status("Не удалось открыть меню «Поделиться».") }
 }
