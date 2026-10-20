@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
 
 private enum class MenuStyle { WHEEL, PUZZLE }
 private enum class WheelKind { CONVERT, TOOLS, ACTIONS }
-private enum class ActionKind { DOWNLOAD, SHARE, COPY, OPEN, HISTORY, SETTINGS, JPEG, PNG, WEBP, COMPRESS, ROTATE }
+private enum class ActionKind { DOWNLOAD, SHARE, COPY, OPEN, HISTORY, SETTINGS, JPEG, PNG, WEBP, MP3, M4A, WAV, MP4, WEBM, GIF, COMPRESS, ROTATE, VIDEO_COMPRESS, THUMBNAIL }
 
 private data class ActionItem(
     val id: String,
@@ -92,8 +92,16 @@ private val actions = listOf(
     ActionItem("jpeg", "JPEG", "Конвертировать в JPEG", ActionKind.JPEG, Glyph.COPY, WheelKind.CONVERT),
     ActionItem("png", "PNG", "Конвертировать в PNG", ActionKind.PNG, Glyph.COPY, WheelKind.CONVERT),
     ActionItem("webp", "WEBP", "Конвертировать в WEBP", ActionKind.WEBP, Glyph.COPY, WheelKind.CONVERT),
-    ActionItem("compress", "Сжать", "Сохранить уменьшенную копию", ActionKind.COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
+    ActionItem("mp3", "MP3", "Извлечь или конвертировать аудио", ActionKind.MP3, Glyph.SHARE, WheelKind.CONVERT),
+    ActionItem("m4a", "M4A", "Конвертировать аудио в M4A", ActionKind.M4A, Glyph.SHARE, WheelKind.CONVERT),
+    ActionItem("wav", "WAV", "Конвертировать аудио в WAV", ActionKind.WAV, Glyph.SHARE, WheelKind.CONVERT),
+    ActionItem("mp4", "MP4", "Конвертировать видео в MP4", ActionKind.MP4, Glyph.LINK, WheelKind.CONVERT),
+    ActionItem("webm", "WEBM", "Конвертировать видео в WEBM", ActionKind.WEBM, Glyph.LINK, WheelKind.CONVERT),
+    ActionItem("gif", "GIF", "Создать GIF из видео", ActionKind.GIF, Glyph.LINK, WheelKind.CONVERT),
+    ActionItem("compress", "Сжать", "Сжать изображение", ActionKind.COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
     ActionItem("rotate", "Повернуть", "Поворот изображения на 90°", ActionKind.ROTATE, Glyph.SETTINGS, WheelKind.TOOLS),
+    ActionItem("video_compress", "Видео", "Сжать видео в MP4", ActionKind.VIDEO_COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
+    ActionItem("thumbnail", "Кадр", "Извлечь миниатюру из видео", ActionKind.THUMBNAIL, Glyph.COPY, WheelKind.TOOLS),
     ActionItem("download", "Скачать", "Ссылка на файл или медиа", ActionKind.DOWNLOAD, Glyph.DOWNLOAD),
     ActionItem("share", "Поделиться", "Передать ссылку в приложение", ActionKind.SHARE, Glyph.SHARE),
     ActionItem("copy", "Копировать", "Скопировать ссылку", ActionKind.COPY, Glyph.COPY),
@@ -188,8 +196,12 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                         RadialActions(visibleActions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
                             selectedId = item.id
                             when (item.kind) {
-                                ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP -> {
-                                    val format = when (item.kind) { ActionKind.JPEG -> "JPEG"; ActionKind.PNG -> "PNG"; else -> "WEBP" }
+                                ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP, ActionKind.MP3, ActionKind.M4A, ActionKind.WAV, ActionKind.MP4, ActionKind.WEBM, ActionKind.GIF -> {
+                                    val format = when (item.kind) {
+                                        ActionKind.JPEG -> "JPEG"; ActionKind.PNG -> "PNG"; ActionKind.WEBP -> "WEBP"
+                                        ActionKind.MP3 -> "MP3"; ActionKind.M4A -> "M4A"; ActionKind.WAV -> "WAV"
+                                        ActionKind.MP4 -> "MP4"; ActionKind.WEBM -> "WEBM"; else -> "GIF"
+                                    }
                                     if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
                                     else scope.launch {
                                         status = "Конвертирую в $format…"
@@ -201,16 +213,20 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                         status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
                                     }
                                 }
-                                ActionKind.COMPRESS, ActionKind.ROTATE -> {
-                                    if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
+                                ActionKind.COMPRESS, ActionKind.ROTATE, ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL -> {
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите файлы"
                                     else scope.launch {
-                                        status = if (item.kind == ActionKind.COMPRESS) "Сжимаю изображения…" else "Поворачиваю изображения…"
+                                        status = when (item.kind) { ActionKind.COMPRESS -> "Сжимаю изображения…"; ActionKind.ROTATE -> "Поворачиваю изображения…"; ActionKind.VIDEO_COMPRESS -> "Сжимаю видео…"; else -> "Извлекаю кадр…" }
                                         val result = withContext(Dispatchers.IO) {
                                             var done = 0; var failed = 0
                                             selectedFiles.forEach { uri ->
                                                 try {
-                                                    if (item.kind == ActionKind.COMPRESS) MediaFileOperations.compressImage(context, uri)
-                                                    else MediaFileOperations.rotateImage(context, uri, 90f)
+                                                    when (item.kind) {
+                                                        ActionKind.COMPRESS -> MediaFileOperations.compressImage(context, uri)
+                                                        ActionKind.ROTATE -> MediaFileOperations.rotateImage(context, uri, 90f)
+                                                        ActionKind.VIDEO_COMPRESS -> MediaTransformOperations.compressVideo(context, uri)
+                                                        else -> MediaTransformOperations.thumbnail(context, uri)
+                                                    }
                                                     done++
                                                 } catch (_: Exception) { failed++ }
                                             }
@@ -231,8 +247,12 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                         PuzzleActions(visibleActions, selectedId, dark, text, muted, panel, tile, edge, accent) { item ->
                             selectedId = item.id
                             when (item.kind) {
-                                ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP -> {
-                                    val format = when (item.kind) { ActionKind.JPEG -> "JPEG"; ActionKind.PNG -> "PNG"; else -> "WEBP" }
+                                ActionKind.JPEG, ActionKind.PNG, ActionKind.WEBP, ActionKind.MP3, ActionKind.M4A, ActionKind.WAV, ActionKind.MP4, ActionKind.WEBM, ActionKind.GIF -> {
+                                    val format = when (item.kind) {
+                                        ActionKind.JPEG -> "JPEG"; ActionKind.PNG -> "PNG"; ActionKind.WEBP -> "WEBP"
+                                        ActionKind.MP3 -> "MP3"; ActionKind.M4A -> "M4A"; ActionKind.WAV -> "WAV"
+                                        ActionKind.MP4 -> "MP4"; ActionKind.WEBM -> "WEBM"; else -> "GIF"
+                                    }
                                     if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
                                     else scope.launch {
                                         status = "Конвертирую в $format…"
@@ -244,8 +264,8 @@ private fun SweetchHome(initialText: String = "", initialFiles: List<Uri> = empt
                                         status = "Конвертация $format: ${result.first} из ${selectedFiles.size}" + if (result.second > 0) " · ошибок: ${result.second}" else ""
                                     }
                                 }
-                                ActionKind.COMPRESS, ActionKind.ROTATE -> {
-                                    if (selectedFiles.isEmpty()) status = "Сначала выберите изображения"
+                                ActionKind.COMPRESS, ActionKind.ROTATE, ActionKind.VIDEO_COMPRESS, ActionKind.THUMBNAIL -> {
+                                    if (selectedFiles.isEmpty()) status = "Сначала выберите файлы"
                                     else scope.launch {
                                         status = if (item.kind == ActionKind.COMPRESS) "Сжимаю изображения…" else "Поворачиваю изображения…"
                                         val result = withContext(Dispatchers.IO) {
