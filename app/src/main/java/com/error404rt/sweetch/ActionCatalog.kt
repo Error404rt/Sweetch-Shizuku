@@ -4,7 +4,7 @@ internal enum class WheelKind { CONVERT, TOOLS, ACTIONS }
 internal enum class ActionKind {
     DOWNLOAD, SHARE, COPY, OPEN, HISTORY, SETTINGS,
     JPEG, PNG, WEBP, MP3, M4A, WAV, MP4, WEBM, GIF,
-    COMPRESS, ROTATE, VIDEO_COMPRESS, THUMBNAIL, AUDIO_COMPRESS, AUDIO_NORMALIZE
+    COMPRESS, ROTATE, VIDEO_COMPRESS, THUMBNAIL, AUDIO_COMPRESS, AUDIO_NORMALIZE, PDF_TO_IMAGES, IMAGES_TO_PDF
 }
 internal enum class Glyph { DOWNLOAD, SHARE, COPY, LINK, HISTORY, SETTINGS }
 
@@ -28,12 +28,14 @@ internal object ActionCatalog {
         ActionItem("mp4", "MP4", "Конвертировать видео в MP4", ActionKind.MP4, Glyph.LINK, WheelKind.CONVERT),
         ActionItem("webm", "WEBM", "Конвертировать видео в WEBM", ActionKind.WEBM, Glyph.LINK, WheelKind.CONVERT),
         ActionItem("gif", "GIF", "Создать GIF из видео", ActionKind.GIF, Glyph.LINK, WheelKind.CONVERT),
+        ActionItem("pdf_to_images", "PDF → PNG", "Рендерить страницы PDF в PNG", ActionKind.PDF_TO_IMAGES, Glyph.COPY, WheelKind.CONVERT),
         ActionItem("compress", "Сжать", "Сжать изображение", ActionKind.COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
         ActionItem("rotate", "Повернуть", "Поворот изображения на 90°", ActionKind.ROTATE, Glyph.SETTINGS, WheelKind.TOOLS),
         ActionItem("video_compress", "Видео", "Сжать видео в MP4", ActionKind.VIDEO_COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
         ActionItem("thumbnail", "Кадр", "Извлечь миниатюру из видео", ActionKind.THUMBNAIL, Glyph.COPY, WheelKind.TOOLS),
         ActionItem("audio_compress", "Аудио", "Сжать аудио до MP3 128k", ActionKind.AUDIO_COMPRESS, Glyph.DOWNLOAD, WheelKind.TOOLS),
         ActionItem("audio_normalize", "Громкость", "Нормализовать громкость аудио", ActionKind.AUDIO_NORMALIZE, Glyph.SETTINGS, WheelKind.TOOLS),
+        ActionItem("images_to_pdf", "PDF", "Объединить изображения в PDF", ActionKind.IMAGES_TO_PDF, Glyph.LINK, WheelKind.TOOLS),
         ActionItem("download", "Скачать", "Ссылка на файл или медиа", ActionKind.DOWNLOAD, Glyph.DOWNLOAD),
         ActionItem("share", "Поделиться", "Передать ссылку в приложение", ActionKind.SHARE, Glyph.SHARE),
         ActionItem("copy", "Копировать", "Скопировать ссылку", ActionKind.COPY, Glyph.COPY),
