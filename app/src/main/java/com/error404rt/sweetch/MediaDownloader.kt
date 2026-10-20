@@ -39,9 +39,8 @@ internal object MediaDownloader {
     suspend fun downloadMediaPage(context: Context, rawUrl: String, onProgress: (String) -> Unit) {
         val uri = Uri.parse(rawUrl.trim())
         require(uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()) { "Введите корректную ссылку HTTP(S)." }
-        val staging = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir, "media-staging")
+        val staging = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir, "media-staging-${System.currentTimeMillis()}")
         if (!staging.exists() && !staging.mkdirs()) throw IOException("Не удалось создать папку загрузки")
-        val before = staging.listFiles()?.map { it.name }?.toSet().orEmpty()
         onMain { onProgress("Инициализирую yt-dlp…") }
         try {
             YtDlp.init(context.applicationContext)
@@ -71,7 +70,7 @@ internal object MediaDownloader {
         if (!response.isSuccess) {
             throw IOException("yt-dlp завершился с кодом ${response.exitCode}. Сервис мог потребовать cookies или дополнительную проверку.")
         }
-        val completed = staging.listFiles()?.filter { it.isFile && it.name !in before && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }.orEmpty()
+        val completed = staging.listFiles()?.filter { it.isFile && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }.orEmpty()
         if (completed.isEmpty()) throw IOException("yt-dlp завершился без готового файла")
         var copied = 0
         completed.forEach { file ->
